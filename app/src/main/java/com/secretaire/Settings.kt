@@ -65,6 +65,16 @@ class Settings(context: Context) {
         get() = prefs.getFloat(KEY_PITCH, 1.0f)
         set(value) = prefs.edit().putFloat(KEY_PITCH, value).apply()
 
+    /** Paquet du moteur de synthèse vocale choisi, ou null pour celui du téléphone. */
+    var ttsEngine: String?
+        get() = prefs.getString(KEY_TTS_ENGINE, null)
+        set(value) = prefs.edit().putString(KEY_TTS_ENGINE, value).remove(KEY_TTS_VOICE).apply()
+
+    /** Nom de la voix choisie dans ce moteur, ou null pour sa voix par défaut. */
+    var ttsVoice: String?
+        get() = prefs.getString(KEY_TTS_VOICE, null)
+        set(value) = prefs.edit().putString(KEY_TTS_VOICE, value).apply()
+
     fun appSetting(packageName: String): AppSetting =
         prefs.getString(APP_PREFIX + packageName, null)
             ?.let { runCatching { ReadingMode.valueOf(it) }.getOrNull() }
@@ -115,6 +125,8 @@ class Settings(context: Context) {
         private const val KEY_QUIET_END = "quiet_end"
         private const val KEY_RATE = "speech_rate"
         private const val KEY_PITCH = "speech_pitch"
+        private const val KEY_TTS_ENGINE = "tts_engine"
+        private const val KEY_TTS_VOICE = "tts_voice"
         private const val APP_PREFIX = "app_mode:"
     }
 }

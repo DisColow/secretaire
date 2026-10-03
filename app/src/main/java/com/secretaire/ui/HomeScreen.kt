@@ -173,6 +173,8 @@ fun HomeScreen(
             }
 
             Section("Voix") {
+                VoicePicker(settings)
+                HorizontalDivider()
                 SliderRow(
                     title = "Vitesse",
                     value = settings.speechRate,
@@ -185,7 +187,7 @@ fun HomeScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = { onTestVoice(example(settings.defaultMode)) }) { Text("Tester") }
-                    OutlinedButton(onClick = { openTtsSettings(context) }) { Text("Choisir la voix") }
+                    OutlinedButton(onClick = { openTtsSettings(context) }) { Text("Réglages Android") }
                 }
             }
 

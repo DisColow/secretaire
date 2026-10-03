@@ -40,6 +40,8 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
         .build()
 
     private var tts: TextToSpeech? = null
+    /** Moteur demandé à la création de [tts] (null = celui du téléphone). */
+    private var ttsEngine: String? = null
     private var ready = false
     private val waitingForInit = mutableListOf<String>()
     private val inFlight = mutableSetOf<String>()
@@ -51,8 +53,11 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
 
     private fun createEngine() {
         ready = false
+        // Si le moteur choisi a été désinstallé, on se rabat sur celui du téléphone.
+        val wanted = settings.ttsEngine?.takeIf { pkg -> TtsEngines.list(appContext).any { it.packageName == pkg } }
+        ttsEngine = settings.ttsEngine
         var engine: TextToSpeech? = null
-        engine = TextToSpeech(appContext) { status ->
+        engine = TextToSpeech(appContext, { status ->
             mainHandler.post {
                 if (tts !== engine) return@post
                 if (status == TextToSpeech.SUCCESS) {
@@ -63,7 +68,7 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
                     finishAll()
                 }
             }
-        }
+        }, wanted)
         tts = engine
     }
 
@@ -75,10 +80,7 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
 
     private fun onInitialized(engine: TextToSpeech) {
         engine.setAudioAttributes(attributes)
-        val locale = Locale.getDefault()
-        if (engine.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
-            engine.language = locale
-        }
+        applyVoice(engine)
         engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
             override fun onDone(utteranceId: String?) = finished(utteranceId)
@@ -99,7 +101,26 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
         queued.forEach(::speakNow)
     }
 
+    private var appliedVoice: String? = null
+
+    /** Applique la voix choisie, ou à défaut la langue du téléphone. */
+    private fun applyVoice(engine: TextToSpeech) {
+        val wanted = settings.ttsVoice
+        appliedVoice = wanted
+        val voice = wanted?.let { name -> runCatching { engine.voices }.getOrNull()?.firstOrNull { it.name == name } }
+        if (voice != null) {
+            engine.voice = voice
+            return
+        }
+        val locale = Locale.getDefault()
+        if (engine.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
+            engine.language = locale
+        }
+    }
+
     fun speak(text: String) {
+        // Moteur changé dans les réglages : on recrée le moteur.
+        if (tts != null && ttsEngine != settings.ttsEngine && inFlight.isEmpty()) releaseEngine()
         if (tts == null) createEngine()
         if (!ready) {
             waitingForInit += text
@@ -111,6 +132,7 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
 
     private fun speakNow(text: String) {
         val engine = tts ?: return speak(text)
+        if (appliedVoice != settings.ttsVoice) applyVoice(engine)
         engine.setSpeechRate(settings.speechRate)
         engine.setPitch(settings.speechPitch)
         acquire()

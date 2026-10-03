@@ -17,7 +17,8 @@ Application Android qui lit à voix haute les notifications reçues.
     seules les notifications autorisées par le système sont lues) ;
   - ignorer les notifications discrètes (affichées sans son) ;
   - plage horaire silencieuse (par ex. 22:00 → 07:00).
-- **Voix** : vitesse, hauteur, bouton de test, accès au choix du moteur / de la voix.
+- **Voix** : choix du moteur de synthèse et de la voix propres à Secrétaire (sans
+  changer la voix du reste du téléphone), vitesse, hauteur, bouton de test.
 - La musique est baissée pendant la lecture, puis remise à son volume.
 - Les notifications permanentes (lecture média, téléchargements…), les résumés de
   groupe et les mises à jour identiques ne sont pas relus.
@@ -48,6 +49,14 @@ Application Android qui lit à voix haute les notifications reçues.
 > Sur Android 13+, pour une appli installée hors Play Store, l'accès aux
 > notifications peut être grisé : ouvrez *Paramètres → Applis → Secrétaire*, menu ⋮,
 > **Autoriser les paramètres restreints**, puis réessayez.
+
+## Voix neuronale hors ligne (recommandé)
+
+Pour une voix bien plus naturelle, gratuite et sans internet, installez un moteur
+[sherpa-onnx](https://k2-fsa.github.io/sherpa/onnx/tts/apk-engine.html)
+(fichiers `arm64-v8a-fra-…`, par ex. `fr_FR-siwis-medium`, `fr_FR-miro-high`,
+`fr_FR-tom-medium` ou `supertonic-3`), puis dans Secrétaire : **Voix → Moteur**
+→ sherpa-onnx, et **Tester**.
 
 ## Technique
 
