@@ -41,6 +41,7 @@ class NotificationReaderService : NotificationListenerService() {
 
     override fun onListenerConnected() {
         speaker()
+        KeepAliveService.sync(this)
     }
 
     override fun onListenerDisconnected() {
@@ -58,6 +59,7 @@ class NotificationReaderService : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
         if (sbn.packageName == packageName) return
+        if (!KeepAliveService.running) KeepAliveService.sync(this)
         val notification = sbn.notification
         val flags = notification.flags
         // Notifications permanentes (lecteur, téléchargement…) et résumés de groupe : jamais lus, pas journalisés.

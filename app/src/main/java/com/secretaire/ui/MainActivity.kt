@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.secretaire.KeepAliveService
 import com.secretaire.Settings
 import com.secretaire.Speaker
 
@@ -37,6 +38,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Depuis l'appli au premier plan, Android autorise toujours le démarrage du service.
+        KeepAliveService.sync(this)
     }
 
     override fun onDestroy() {

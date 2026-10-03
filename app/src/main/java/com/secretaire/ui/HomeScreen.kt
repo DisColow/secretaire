@@ -47,6 +47,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.secretaire.Journal
+import com.secretaire.KeepAliveService
 import com.secretaire.NotificationText
 import com.secretaire.ReadingMode
 import com.secretaire.Settings
@@ -98,7 +99,10 @@ fun HomeScreen(
                 SwitchRow(
                     title = "Lire les notifications à voix haute",
                     checked = settings.enabled,
-                    onCheckedChange = { settings.enabled = it },
+                    onCheckedChange = {
+                        settings.enabled = it
+                        KeepAliveService.sync(context)
+                    },
                 )
                 HorizontalDivider()
                 Text(
