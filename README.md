@@ -12,6 +12,7 @@ Application Android qui lit à voix haute les notifications reçues.
 - **Toutes les applis sont lues**, sauf celles que vous passez en *Muet*.
 - **Conditions**
   - lire seulement quand des écouteurs (filaires, USB, Bluetooth) sont connectés ;
+  - lire seulement quand l'écran est éteint ;
   - respecter le mode silencieux / vibreur et Ne pas déranger (en NPD prioritaire,
     seules les notifications autorisées par le système sont lues) ;
   - ignorer les notifications discrètes (affichées sans son) ;

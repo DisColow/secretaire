@@ -110,6 +110,12 @@ fun HomeScreen(
                     onCheckedChange = { settings.headphonesOnly = it },
                 )
                 SwitchRow(
+                    title = "Seulement écran éteint",
+                    subtitle = "Rien n'est lu pendant que vous utilisez le téléphone",
+                    checked = settings.screenOffOnly,
+                    onCheckedChange = { settings.screenOffOnly = it },
+                )
+                SwitchRow(
                     title = "Respecter le mode silencieux et Ne pas déranger",
                     subtitle = "Rien n'est lu en silencieux / vibreur ; en Ne pas déranger, " +
                         "seules les notifications autorisées sont lues",

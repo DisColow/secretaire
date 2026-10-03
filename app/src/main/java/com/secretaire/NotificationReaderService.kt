@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -20,6 +21,7 @@ class NotificationReaderService : NotificationListenerService() {
 
     private lateinit var settings: Settings
     private lateinit var audioManager: AudioManager
+    private lateinit var powerManager: PowerManager
     private var speaker: Speaker? = null
 
     /** Dernier texte lu par clé de notification, pour ignorer les simples mises à jour. */
@@ -31,6 +33,7 @@ class NotificationReaderService : NotificationListenerService() {
         super.onCreate()
         settings = Settings(this)
         audioManager = getSystemService(AudioManager::class.java)
+        powerManager = getSystemService(PowerManager::class.java)
     }
 
     override fun onListenerConnected() {
@@ -89,6 +92,7 @@ class NotificationReaderService : NotificationListenerService() {
 
         if (settings.respectSilentAndDnd && isSilenced(ranking)) return null
         if (settings.headphonesOnly && !headphonesConnected()) return null
+        if (settings.screenOffOnly && powerManager.isInteractive) return null
 
         val calendar = Calendar.getInstance()
         val minuteOfDay = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)

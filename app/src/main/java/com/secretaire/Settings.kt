@@ -27,6 +27,11 @@ class Settings(context: Context) {
         get() = prefs.getBoolean(KEY_HEADPHONES_ONLY, false)
         set(value) = prefs.edit().putBoolean(KEY_HEADPHONES_ONLY, value).apply()
 
+    /** Lire seulement quand l'écran est éteint. */
+    var screenOffOnly: Boolean
+        get() = prefs.getBoolean(KEY_SCREEN_OFF_ONLY, false)
+        set(value) = prefs.edit().putBoolean(KEY_SCREEN_OFF_ONLY, value).apply()
+
     var respectSilentAndDnd: Boolean
         get() = prefs.getBoolean(KEY_RESPECT_SILENT, true)
         set(value) = prefs.edit().putBoolean(KEY_RESPECT_SILENT, value).apply()
@@ -102,6 +107,7 @@ class Settings(context: Context) {
         private const val KEY_ENABLED = "enabled"
         private const val KEY_DEFAULT_MODE = "default_mode"
         private const val KEY_HEADPHONES_ONLY = "headphones_only"
+        private const val KEY_SCREEN_OFF_ONLY = "screen_off_only"
         private const val KEY_RESPECT_SILENT = "respect_silent"
         private const val KEY_IGNORE_SILENT_NOTIFS = "ignore_silent_notifications"
         private const val KEY_QUIET_ENABLED = "quiet_enabled"
