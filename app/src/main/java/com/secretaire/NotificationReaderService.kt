@@ -2,6 +2,7 @@ package com.secretaire
 
 import android.app.Notification
 import android.app.NotificationManager
+import android.content.ComponentName
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
@@ -20,6 +21,7 @@ import java.util.Calendar
 class NotificationReaderService : NotificationListenerService() {
 
     private lateinit var settings: Settings
+    private lateinit var journal: Journal
     private lateinit var audioManager: AudioManager
     private lateinit var powerManager: PowerManager
     private var speaker: Speaker? = null
@@ -32,17 +34,20 @@ class NotificationReaderService : NotificationListenerService() {
     override fun onCreate() {
         super.onCreate()
         settings = Settings(this)
+        journal = Journal(this)
         audioManager = getSystemService(AudioManager::class.java)
         powerManager = getSystemService(PowerManager::class.java)
     }
 
     override fun onListenerConnected() {
-        speaker = speaker ?: Speaker(this)
+        speaker()
     }
 
     override fun onListenerDisconnected() {
         speaker?.shutdown()
         speaker = null
+        // Android peut déconnecter le service (mémoire, mise à jour) : on demande à être relié de nouveau.
+        requestRebind(ComponentName(this, NotificationReaderService::class.java))
     }
 
     override fun onDestroy() {
@@ -52,12 +57,27 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification) {
-        val text = textToSpeak(sbn) ?: return
+        if (sbn.packageName == packageName) return
+        val notification = sbn.notification
+        val flags = notification.flags
+        // Notifications permanentes (lecteur, téléchargement…) et résumés de groupe : jamais lus, pas journalisés.
+        if (sbn.isOngoing || flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return
+        if (flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+
+        val app = appName(sbn)
+        val text = when (val decision = decide(sbn, app)) {
+            is Decision.Skip -> {
+                journal.add(app, "ignorée : ${decision.reason}")
+                return
+            }
+            is Decision.Speak -> decision.text
+        }
 
         // Les applis republient souvent la même notification : on évite les répétitions.
-        if (lastSpokenByKey[sbn.key] == text) return
         val now = SystemClock.elapsedRealtime()
-        if (text == lastSpokenText && now - lastSpokenAt < DUPLICATE_WINDOW_MS) return
+        if (lastSpokenByKey[sbn.key] == text ||
+            (text == lastSpokenText && now - lastSpokenAt < DUPLICATE_WINDOW_MS)
+        ) return
 
         lastSpokenByKey[sbn.key] = text
         if (lastSpokenByKey.size > MAX_REMEMBERED_KEYS) {
@@ -66,47 +86,57 @@ class NotificationReaderService : NotificationListenerService() {
         lastSpokenText = text
         lastSpokenAt = now
 
-        (speaker ?: Speaker(this).also { speaker = it }).speak(text)
+        journal.add(app, "lue")
+        speaker().speak(text)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
         lastSpokenByKey.remove(sbn.key)
     }
 
-    private fun textToSpeak(sbn: StatusBarNotification): String? {
-        if (!settings.enabled) return null
-        if (sbn.packageName == packageName) return null
+    private sealed interface Decision {
+        data class Speak(val text: String) : Decision
+        data class Skip(val reason: String) : Decision
+    }
 
-        val notification = sbn.notification
-        val flags = notification.flags
-        if (sbn.isOngoing || flags and Notification.FLAG_FOREGROUND_SERVICE != 0) return null
-        if (flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
+    private fun decide(sbn: StatusBarNotification, app: String): Decision {
+        if (!settings.enabled) return Decision.Skip("lecture désactivée")
 
         val mode = settings.effectiveMode(sbn.packageName)
-        if (mode == ReadingMode.MUTED) return null
+        if (mode == ReadingMode.MUTED) return Decision.Skip("appli en muet")
 
         val ranking = Ranking().takeIf { currentRanking?.getRanking(sbn.key, it) == true }
         if (settings.ignoreSilentNotifications && ranking != null &&
             ranking.importance < NotificationManager.IMPORTANCE_DEFAULT
-        ) return null
+        ) return Decision.Skip("notification discrète")
 
-        if (settings.respectSilentAndDnd && isSilenced(ranking)) return null
-        if (settings.headphonesOnly && !headphonesConnected()) return null
-        if (settings.screenOffOnly && powerManager.isInteractive) return null
+        if (settings.respectSilentAndDnd) {
+            silenceReason(ranking)?.let { return Decision.Skip(it) }
+        }
+        if (settings.headphonesOnly && !headphonesConnected()) return Decision.Skip("pas d'écouteurs")
+        if (settings.screenOffOnly && powerManager.isInteractive) return Decision.Skip("écran allumé")
 
         val calendar = Calendar.getInstance()
         val minuteOfDay = calendar.get(Calendar.HOUR_OF_DAY) * 60 + calendar.get(Calendar.MINUTE)
-        if (settings.isInQuietHours(minuteOfDay)) return null
+        if (settings.isInQuietHours(minuteOfDay)) return Decision.Skip("plage horaire silencieuse")
 
-        return NotificationText.build(appName(sbn), notification, mode)
+        val text = NotificationText.build(app, sbn.notification, mode) ?: return Decision.Skip("rien à lire")
+        return Decision.Speak(text)
     }
 
-    private fun isSilenced(ranking: Ranking?): Boolean {
-        if (audioManager.ringerMode != AudioManager.RINGER_MODE_NORMAL) return true
+    private fun speaker(): Speaker =
+        speaker ?: Speaker(this) { journal.add("Secrétaire", it) }.also { speaker = it }
+
+    /** Raison de ne pas lire (silencieux / Ne pas déranger), ou null. Le vibreur n'empêche pas la lecture. */
+    private fun silenceReason(ranking: Ranking?): String? {
         val filter = currentInterruptionFilter
-        if (filter == INTERRUPTION_FILTER_ALL || filter == INTERRUPTION_FILTER_UNKNOWN) return false
-        // En mode Ne pas déranger « prioritaire », on laisse passer ce que le système laisse passer.
-        return ranking?.matchesInterruptionFilter() != true
+        if (filter != INTERRUPTION_FILTER_ALL && filter != INTERRUPTION_FILTER_UNKNOWN) {
+            // En Ne pas déranger « prioritaire », on laisse passer ce que le système laisse passer.
+            if (ranking?.matchesInterruptionFilter() != true) return "Ne pas déranger"
+            return null
+        }
+        if (audioManager.ringerMode == AudioManager.RINGER_MODE_SILENT) return "mode silencieux"
+        return null
     }
 
     private fun headphonesConnected(): Boolean =

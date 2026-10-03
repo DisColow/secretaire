@@ -5,20 +5,30 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Enveloppe autour de [TextToSpeech] : met les phrases en file d'attente,
- * applique vitesse et hauteur, et baisse le volume de la musique pendant la lecture.
+ * applique vitesse et hauteur, baisse le volume de la musique pendant la lecture,
+ * garde le processeur éveillé (écran éteint) et recrée le moteur s'il est tombé.
+ *
+ * Toutes les méthodes publiques doivent être appelées depuis le thread principal.
  */
-class Speaker(context: Context) {
+class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
 
     private val appContext = context.applicationContext
     private val settings = Settings(appContext)
     private val audioManager = appContext.getSystemService(AudioManager::class.java)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    private val wakeLock = appContext.getSystemService(PowerManager::class.java)
+        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "secretaire:speech")
+        .apply { setReferenceCounted(false) }
 
     private val attributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE)
@@ -29,72 +39,121 @@ class Speaker(context: Context) {
         .setAudioAttributes(attributes)
         .build()
 
-    private val pendingUtterances = AtomicInteger(0)
-    private val nextId = AtomicInteger(0)
-    private val waitingForInit = mutableListOf<String>()
-
-    @Volatile
+    private var tts: TextToSpeech? = null
     private var ready = false
+    private val waitingForInit = mutableListOf<String>()
+    private val inFlight = mutableSetOf<String>()
+    private var nextId = 0
 
-    private val tts: TextToSpeech = TextToSpeech(appContext) { status ->
-        if (status != TextToSpeech.SUCCESS) return@TextToSpeech
-        onInitialized()
+    init {
+        createEngine()
     }
 
-    private fun onInitialized() {
-        tts.setAudioAttributes(attributes)
-        val locale = Locale.getDefault()
-        if (tts.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
-            tts.language = locale
+    private fun createEngine() {
+        ready = false
+        var engine: TextToSpeech? = null
+        engine = TextToSpeech(appContext) { status ->
+            mainHandler.post {
+                if (tts !== engine) return@post
+                if (status == TextToSpeech.SUCCESS) {
+                    onInitialized(engine!!)
+                } else {
+                    onError("Synthèse vocale indisponible (code $status). Vérifiez qu'un moteur est installé.")
+                    releaseEngine()
+                    finishAll()
+                }
+            }
         }
-        tts.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+        tts = engine
+    }
+
+    private fun releaseEngine() {
+        tts?.shutdown()
+        tts = null
+        ready = false
+    }
+
+    private fun onInitialized(engine: TextToSpeech) {
+        engine.setAudioAttributes(attributes)
+        val locale = Locale.getDefault()
+        if (engine.isLanguageAvailable(locale) >= TextToSpeech.LANG_AVAILABLE) {
+            engine.language = locale
+        }
+        engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(utteranceId: String?) {}
-            override fun onDone(utteranceId: String?) = onUtteranceFinished()
+            override fun onDone(utteranceId: String?) = finished(utteranceId)
 
             @Deprecated("Deprecated in Java")
-            override fun onError(utteranceId: String?) = onUtteranceFinished()
-            override fun onError(utteranceId: String?, errorCode: Int) = onUtteranceFinished()
-            override fun onStop(utteranceId: String?, interrupted: Boolean) = onUtteranceFinished()
+            override fun onError(utteranceId: String?) = finished(utteranceId)
+
+            override fun onError(utteranceId: String?, errorCode: Int) {
+                mainHandler.post { onError("Erreur de lecture (code $errorCode)") }
+                finished(utteranceId)
+            }
+
+            override fun onStop(utteranceId: String?, interrupted: Boolean) = finished(utteranceId)
         })
-        val queued = synchronized(waitingForInit) {
-            ready = true
-            waitingForInit.toList().also { waitingForInit.clear() }
-        }
-        queued.forEach(::speak)
+        ready = true
+        val queued = waitingForInit.toList()
+        waitingForInit.clear()
+        queued.forEach(::speakNow)
     }
 
     fun speak(text: String) {
-        synchronized(waitingForInit) {
-            if (!ready) {
-                waitingForInit += text
-                return
-            }
+        if (tts == null) createEngine()
+        if (!ready) {
+            waitingForInit += text
+            acquire()
+            return
         }
-        tts.setSpeechRate(settings.speechRate)
-        tts.setPitch(settings.speechPitch)
-        if (pendingUtterances.getAndIncrement() == 0) {
-            audioManager.requestAudioFocus(focusRequest)
-        }
-        val id = "secretaire-${nextId.incrementAndGet()}"
-        val result = tts.speak(text, TextToSpeech.QUEUE_ADD, Bundle(), id)
-        if (result != TextToSpeech.SUCCESS) onUtteranceFinished()
+        speakNow(text)
     }
 
-    fun stop() {
-        tts.stop()
-        pendingUtterances.set(0)
+    private fun speakNow(text: String) {
+        val engine = tts ?: return speak(text)
+        engine.setSpeechRate(settings.speechRate)
+        engine.setPitch(settings.speechPitch)
+        acquire()
+        val id = "secretaire-${++nextId}"
+        inFlight += id
+        val result = engine.speak(text, TextToSpeech.QUEUE_ADD, Bundle(), id)
+        if (result != TextToSpeech.SUCCESS) {
+            // Le moteur a sans doute été tué en arrière-plan : on le recrée et on réessaie une fois.
+            inFlight -= id
+            releaseEngine()
+            waitingForInit += text
+            createEngine()
+        }
+    }
+
+    private fun acquire() {
+        if (inFlight.isEmpty() && waitingForInit.size <= 1) {
+            audioManager.requestAudioFocus(focusRequest)
+        }
+        wakeLock.acquire(WAKE_LOCK_TIMEOUT_MS)
+    }
+
+    private fun finished(utteranceId: String?) {
+        mainHandler.post {
+            inFlight -= utteranceId ?: return@post
+            if (inFlight.isEmpty() && waitingForInit.isEmpty()) finishAll()
+        }
+    }
+
+    private fun finishAll() {
+        inFlight.clear()
+        waitingForInit.clear()
         audioManager.abandonAudioFocusRequest(focusRequest)
+        if (wakeLock.isHeld) wakeLock.release()
     }
 
     fun shutdown() {
-        stop()
-        tts.shutdown()
+        tts?.stop()
+        releaseEngine()
+        finishAll()
     }
 
-    private fun onUtteranceFinished() {
-        if (pendingUtterances.decrementAndGet() <= 0) {
-            pendingUtterances.set(0)
-            audioManager.abandonAudioFocusRequest(focusRequest)
-        }
+    private companion object {
+        const val WAKE_LOCK_TIMEOUT_MS = 60_000L
     }
 }

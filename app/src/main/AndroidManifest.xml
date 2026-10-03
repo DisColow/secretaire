@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Garder le processeur éveillé pendant la lecture, écran éteint. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Demander à ne pas être endormi par l'optimisation de batterie. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
     <!-- Lister les applis installées (pour les réglages par appli). -->
     <queries>
         <intent>

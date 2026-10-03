@@ -13,7 +13,7 @@ Application Android qui lit à voix haute les notifications reçues.
 - **Conditions**
   - lire seulement quand des écouteurs (filaires, USB, Bluetooth) sont connectés ;
   - lire seulement quand l'écran est éteint ;
-  - respecter le mode silencieux / vibreur et Ne pas déranger (en NPD prioritaire,
+  - respecter le mode silencieux et Ne pas déranger (le vibreur n'empêche pas la lecture) (en NPD prioritaire,
     seules les notifications autorisées par le système sont lues) ;
   - ignorer les notifications discrètes (affichées sans son) ;
   - plage horaire silencieuse (par ex. 22:00 → 07:00).
@@ -21,6 +21,9 @@ Application Android qui lit à voix haute les notifications reçues.
 - La musique est baissée pendant la lecture, puis remise à son volume.
 - Les notifications permanentes (lecture média, téléchargements…), les résumés de
   groupe et les mises à jour identiques ne sont pas relus.
+
+- **Journal** : les 50 dernières notifications reçues, avec « lue » ou la raison
+  pour laquelle elles ont été ignorées.
 
 ## Installation
 
@@ -30,6 +33,8 @@ Application Android qui lit à voix haute les notifications reçues.
 2. Installer l'APK sur le téléphone (autoriser les sources inconnues si demandé).
 3. Ouvrir Secrétaire et appuyer sur **Autoriser l'accès** pour lui donner l'accès
    aux notifications.
+4. Si l'appli le propose, désactiver l'optimisation de batterie, sinon Android
+   peut l'endormir écran éteint.
 
 > Sur Android 13+, pour une appli installée hors Play Store, l'accès aux
 > notifications peut être grisé : ouvrez *Paramètres → Applis → Secrétaire*, menu ⋮,

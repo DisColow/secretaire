@@ -34,12 +34,15 @@ fun SecretaireTheme(content: @Composable () -> Unit) {
  * pour que l'interface se recompose quand on les lit.
  */
 @Composable
-fun rememberSettingsVersion(settings: Settings): Int {
+fun rememberSettingsVersion(settings: Settings): Int = rememberPrefsVersion(settings.prefs)
+
+@Composable
+fun rememberPrefsVersion(prefs: SharedPreferences): Int {
     val version = remember { mutableIntStateOf(0) }
-    DisposableEffect(settings) {
+    DisposableEffect(prefs) {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> version.intValue++ }
-        settings.prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { settings.prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val current by version
     return current

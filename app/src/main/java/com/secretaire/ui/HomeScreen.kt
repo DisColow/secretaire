@@ -1,9 +1,12 @@
 package com.secretaire.ui
 
+import android.annotation.SuppressLint
 import android.app.TimePickerDialog
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.secretaire.Journal
 import com.secretaire.NotificationText
 import com.secretaire.ReadingMode
 import com.secretaire.Settings
@@ -58,8 +62,16 @@ fun HomeScreen(
     val context = LocalContext.current
     rememberSettingsVersion(settings) // recompose quand les réglages changent
 
+    val journal = remember { Journal(context) }
+    val journalVersion = rememberPrefsVersion(journal.prefs)
+    val journalEntries = remember(journalVersion) { journal.entries() }
+
     var hasAccess by remember { mutableStateOf(hasNotificationAccess(context)) }
-    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { hasAccess = hasNotificationAccess(context) }
+    var batteryRestricted by remember { mutableStateOf(isBatteryRestricted(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        hasAccess = hasNotificationAccess(context)
+        batteryRestricted = isBatteryRestricted(context)
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text("Secrétaire") }) }) { padding ->
         Column(
@@ -72,6 +84,14 @@ fun HomeScreen(
         ) {
             if (!hasAccess) {
                 AccessCard(onClick = { openNotificationAccessSettings(context) })
+            } else if (batteryRestricted) {
+                WarningCard(
+                    title = "Optimisation de batterie active",
+                    text = "Android risque d'endormir Secrétaire quand l'écran est éteint, " +
+                        "et plus rien ne sera lu. Autorisez-la à fonctionner sans restriction.",
+                    button = "Désactiver l'optimisation",
+                    onClick = { requestBatteryExemption(context) },
+                )
             }
 
             Section("Lecture") {
@@ -117,8 +137,8 @@ fun HomeScreen(
                 )
                 SwitchRow(
                     title = "Respecter le mode silencieux et Ne pas déranger",
-                    subtitle = "Rien n'est lu en silencieux / vibreur ; en Ne pas déranger, " +
-                        "seules les notifications autorisées sont lues",
+                    subtitle = "Rien n'est lu en silencieux ; en Ne pas déranger, seules les " +
+                        "notifications autorisées sont lues. Le vibreur n'empêche pas la lecture.",
                     checked = settings.respectSilentAndDnd,
                     onCheckedChange = { settings.respectSilentAndDnd = it },
                 )
@@ -164,23 +184,56 @@ fun HomeScreen(
                     OutlinedButton(onClick = { openTtsSettings(context) }) { Text("Choisir la voix") }
                 }
             }
+
+            Section("Journal") {
+                if (journalEntries.isEmpty()) {
+                    Text(
+                        if (hasAccess) {
+                            "Aucune notification reçue pour l'instant. Si vous en avez reçu, " +
+                                "Android a sans doute arrêté Secrétaire : désactivez l'optimisation " +
+                                "de batterie, puis retirez et redonnez l'accès aux notifications."
+                        } else {
+                            "Aucune notification reçue : l'accès aux notifications n'est pas autorisé."
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                } else {
+                    Text(
+                        "Dernières notifications et ce qui en a été fait :",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    journalEntries.take(20).forEach { line ->
+                        Text(line, style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedButton(onClick = { journal.clear() }) { Text("Effacer") }
+                }
+            }
         }
     }
 }
 
 @Composable
 private fun AccessCard(onClick: () -> Unit) {
+    WarningCard(
+        title = "Accès aux notifications requis",
+        text = "Pour lire vos notifications, Secrétaire doit y avoir accès. " +
+            "Activez « Secrétaire » dans l'écran qui va s'ouvrir.",
+        button = "Autoriser l'accès",
+        onClick = onClick,
+    )
+}
+
+@Composable
+private fun WarningCard(title: String, text: String, button: String, onClick: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
         modifier = Modifier.fillMaxWidth(),
     ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Accès aux notifications requis", style = MaterialTheme.typography.titleMedium)
-            Text(
-                "Pour lire vos notifications, Secrétaire doit y avoir accès. " +
-                    "Activez « Secrétaire » dans l'écran qui va s'ouvrir.",
-            )
-            Button(onClick = onClick) { Text("Autoriser l'accès") }
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(text)
+            Button(onClick = onClick) { Text(button) }
         }
     }
 }
@@ -281,6 +334,20 @@ private fun pickTime(context: Context, initial: Int, onPicked: (Int) -> Unit) {
 
 private fun hasNotificationAccess(context: Context): Boolean =
     NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+private fun isBatteryRestricted(context: Context): Boolean =
+    !context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+
+@SuppressLint("BatteryLife") // Appli installée hors Play Store, la lecture écran éteint en dépend.
+private fun requestBatteryExemption(context: Context) {
+    val intent = Intent(AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+        .setData(Uri.parse("package:${context.packageName}"))
+    try {
+        context.startActivity(intent)
+    } catch (_: ActivityNotFoundException) {
+        context.startActivity(Intent(AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+    }
+}
 
 private fun openNotificationAccessSettings(context: Context) {
     context.startActivity(Intent(AndroidSettings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
