@@ -15,8 +15,25 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew assembleDebug
+
+      - name: Build signed release APK
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: |
+          if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "::error::Secrets de signature absents : ajoutez SIGNING_KEYSTORE_BASE64, SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS et SIGNING_KEY_PASSWORD (voir README)."
+            exit 1
+          fi
+          export SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/secretaire.jks"
+          echo "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$SIGNING_KEYSTORE_PATH"
+          ./gradlew assembleRelease
+          rm -f "$SIGNING_KEYSTORE_PATH"
+          mv app/build/outputs/apk/release/app-release.apk "secretaire-${GITHUB_RUN_NUMBER}.apk"
+
       - uses: actions/upload-artifact@v4
         with:
-          name: secretaire-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: secretaire-apk
+          path: secretaire-*.apk

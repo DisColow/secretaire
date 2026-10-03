@@ -34,8 +34,8 @@ Application Android qui lit à voix haute les notifications reçues.
 ## Installation
 
 1. Récupérer l'APK : onglet **Actions** du dépôt → dernier build → artefact
-   `secretaire-debug-apk`. Ou compiler : `./gradlew assembleDebug`
-   (APK dans `app/build/outputs/apk/debug/`).
+   `secretaire-apk`. Les mises à jour s'installent par-dessus la version
+   existante (même clé de signature), sans perdre les réglages.
 2. Installer l'APK sur le téléphone (autoriser les sources inconnues si demandé).
 3. Ouvrir Secrétaire et appuyer sur **Autoriser l'accès** pour lui donner l'accès
    aux notifications.
@@ -57,6 +57,24 @@ Pour une voix bien plus naturelle, gratuite et sans internet, installez un moteu
 (fichiers `arm64-v8a-fra-…`, par ex. `fr_FR-siwis-medium`, `fr_FR-miro-high`,
 `fr_FR-tom-medium` ou `supertonic-3`), puis dans Secrétaire : **Voix → Moteur**
 → sherpa-onnx, et **Tester**.
+
+## Signature
+
+Les APK sont signés en CI avec une clé fixe, stockée dans les secrets GitHub du dépôt
+(*Settings → Secrets and variables → Actions*) :
+
+| Secret | Contenu |
+|---|---|
+| `SIGNING_KEYSTORE_BASE64` | le fichier `.jks` encodé en base64 |
+| `SIGNING_STORE_PASSWORD` | mot de passe du keystore |
+| `SIGNING_KEY_ALIAS` | alias de la clé |
+| `SIGNING_KEY_PASSWORD` | mot de passe de la clé |
+
+Gardez une copie de la clé en lieu sûr : sans elle, impossible de publier une mise à
+jour installable par-dessus l'appli existante.
+
+Compilation locale signée : définir `SIGNING_KEYSTORE_PATH` (chemin du `.jks`) et les
+trois autres variables, puis `./gradlew assembleRelease`.
 
 ## Technique
 
