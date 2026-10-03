@@ -1,0 +1,46 @@
+# Secrétaire
+
+Application Android qui lit à voix haute les notifications reçues.
+
+## Fonctionnalités
+
+- **Deux modes de lecture**
+  - *Nom de l'appli seulement* : « Notification de WhatsApp »
+  - *Contenu complet* : « WhatsApp. Marie : On se retrouve à 19 h ? »
+- **Mode par défaut + réglage par appli** : chaque appli peut suivre le réglage
+  global, ou être forcée en *Nom seul*, *Complet* ou *Muet*.
+- **Toutes les applis sont lues**, sauf celles que vous passez en *Muet*.
+- **Conditions**
+  - lire seulement quand des écouteurs (filaires, USB, Bluetooth) sont connectés ;
+  - respecter le mode silencieux / vibreur et Ne pas déranger (en NPD prioritaire,
+    seules les notifications autorisées par le système sont lues) ;
+  - ignorer les notifications discrètes (affichées sans son) ;
+  - plage horaire silencieuse (par ex. 22:00 → 07:00).
+- **Voix** : vitesse, hauteur, bouton de test, accès au choix du moteur / de la voix.
+- La musique est baissée pendant la lecture, puis remise à son volume.
+- Les notifications permanentes (lecture média, téléchargements…), les résumés de
+  groupe et les mises à jour identiques ne sont pas relus.
+
+## Installation
+
+1. Récupérer l'APK : onglet **Actions** du dépôt → dernier build → artefact
+   `secretaire-debug-apk`. Ou compiler : `./gradlew assembleDebug`
+   (APK dans `app/build/outputs/apk/debug/`).
+2. Installer l'APK sur le téléphone (autoriser les sources inconnues si demandé).
+3. Ouvrir Secrétaire et appuyer sur **Autoriser l'accès** pour lui donner l'accès
+   aux notifications.
+
+> Sur Android 13+, pour une appli installée hors Play Store, l'accès aux
+> notifications peut être grisé : ouvrez *Paramètres → Applis → Secrétaire*, menu ⋮,
+> **Autoriser les paramètres restreints**, puis réessayez.
+
+## Technique
+
+Kotlin, Jetpack Compose (Material 3), Android 8.0+ (minSdk 26).
+
+- `NotificationReaderService` : `NotificationListenerService` qui filtre et lit.
+- `NotificationText` : construit la phrase (gère les conversations MessagingStyle,
+  remplace les liens par « lien », tronque les textes trop longs).
+- `Speaker` : synthèse vocale (`TextToSpeech`) avec file d'attente et atténuation audio.
+- `Settings` : réglages (SharedPreferences).
+- `ui/` : écran principal et écran des réglages par appli.
