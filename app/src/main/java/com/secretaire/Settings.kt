@@ -114,8 +114,8 @@ class Settings(context: Context) {
     }
 
     companion object {
-        private const val KEY_ENABLED = "enabled"
-        private const val KEY_DEFAULT_MODE = "default_mode"
+        const val KEY_ENABLED = "enabled"
+        const val KEY_DEFAULT_MODE = "default_mode"
         private const val KEY_HEADPHONES_ONLY = "headphones_only"
         private const val KEY_SCREEN_OFF_ONLY = "screen_off_only"
         private const val KEY_RESPECT_SILENT = "respect_silent"

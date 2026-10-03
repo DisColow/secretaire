@@ -3,6 +3,7 @@ package com.secretaire
 import android.app.Notification
 import android.app.NotificationManager
 import android.content.ComponentName
+import android.content.SharedPreferences
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.media.AudioDeviceInfo
@@ -31,10 +32,16 @@ class NotificationReaderService : NotificationListenerService() {
     private var lastSpokenText: String? = null
     private var lastSpokenAt = 0L
 
+    private val prefsListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        // Mise en pause : on coupe aussi la lecture en cours.
+        if (key == Settings.KEY_ENABLED && !settings.enabled) speaker?.stop()
+    }
+
     override fun onCreate() {
         super.onCreate()
         settings = Settings(this)
         journal = Journal(this)
+        settings.prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         audioManager = getSystemService(AudioManager::class.java)
         powerManager = getSystemService(PowerManager::class.java)
     }
@@ -52,6 +59,7 @@ class NotificationReaderService : NotificationListenerService() {
     }
 
     override fun onDestroy() {
+        settings.prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
         speaker?.shutdown()
         speaker = null
         super.onDestroy()

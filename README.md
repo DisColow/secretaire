@@ -26,10 +26,11 @@ Application Android qui lit à voix haute les notifications reçues.
 - **Journal** : les 50 dernières notifications reçues, avec « lue » ou la raison
   pour laquelle elles ont été ignorées.
 
-- **Reste actif appli fermée** : une notification permanente discrète
-  (« Secrétaire lit vos notifications ») empêche Android de mettre l'appli en pause.
-  Vous pouvez la masquer (appui long → désactiver la catégorie « Secrétaire actif ») :
-  le service continue de tourner.
+- **Notification permanente** « Secrétaire : lecture activée / en pause », avec un bouton
+  **Mettre en pause / Reprendre**. Elle empêche aussi Android de mettre l'appli en pause.
+- **Tuile des réglages rapides** « Secrétaire » pour activer / désactiver d'un geste
+  (bouton « Ajouter la tuile » dans l'appli sur Android 13+, sinon via la modification
+  des réglages rapides).
 
 ## Installation
 

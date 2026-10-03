@@ -1,6 +1,11 @@
 package com.secretaire.ui
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -22,6 +27,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         speaker = Speaker(this)
         val settings = Settings(this)
+        requestNotificationPermission()
 
         setContent {
             SecretaireTheme {
@@ -37,6 +43,21 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    private val notificationPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            // La notification permanente existe déjà ; on la republie pour qu'elle apparaisse.
+            if (granted) startService(Intent(this, KeepAliveService::class.java))
+        }
+
+    /** Android 13+ : sans cette permission, la notification permanente reste invisible. */
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

@@ -169,6 +169,12 @@ class Speaker(context: Context, private val onError: (String) -> Unit = {}) {
         if (wakeLock.isHeld) wakeLock.release()
     }
 
+    /** Coupe la lecture en cours et vide la file d'attente. */
+    fun stop() {
+        tts?.stop()
+        finishAll()
+    }
+
     fun shutdown() {
         tts?.stop()
         releaseEngine()

@@ -1,13 +1,19 @@
 package com.secretaire.ui
 
 import android.annotation.SuppressLint
+import android.app.StatusBarManager
 import android.app.TimePickerDialog
 import android.content.ActivityNotFoundException
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.net.Uri
+import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings as AndroidSettings
+import android.widget.Toast
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,8 +53,10 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.secretaire.Journal
-import com.secretaire.KeepAliveService
+import com.secretaire.QuickTileService
+import com.secretaire.Toggle
 import com.secretaire.NotificationText
+import com.secretaire.R
 import com.secretaire.ReadingMode
 import com.secretaire.Settings
 import java.util.Locale
@@ -99,11 +107,14 @@ fun HomeScreen(
                 SwitchRow(
                     title = "Lire les notifications à voix haute",
                     checked = settings.enabled,
-                    onCheckedChange = {
-                        settings.enabled = it
-                        KeepAliveService.sync(context)
-                    },
+                    onCheckedChange = { Toggle.set(context, it) },
+                    subtitle = "Aussi depuis la notification permanente ou la tuile des réglages rapides",
                 )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    OutlinedButton(onClick = { requestAddTile(context) }) {
+                        Text("Ajouter la tuile aux réglages rapides")
+                    }
+                }
                 HorizontalDivider()
                 Text(
                     "Par défaut, lire :",
@@ -340,6 +351,24 @@ private fun pickTime(context: Context, initial: Int, onPicked: (Int) -> Unit) {
 
 private fun hasNotificationAccess(context: Context): Boolean =
     NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private fun requestAddTile(context: Context) {
+    context.getSystemService(StatusBarManager::class.java).requestAddTileService(
+        ComponentName(context, QuickTileService::class.java),
+        "Secrétaire",
+        Icon.createWithResource(context, R.drawable.ic_notification),
+        context.mainExecutor,
+    ) { result ->
+        val message = when (result) {
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED -> "Tuile ajoutée"
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "La tuile est déjà dans les réglages rapides"
+            StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> null
+            else -> "Ajoutez la tuile « Secrétaire » en modifiant les réglages rapides"
+        }
+        message?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+    }
+}
 
 private fun isBatteryRestricted(context: Context): Boolean =
     !context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
